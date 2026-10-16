@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Print Pricing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#e9eef0; --panel:#ffffff; --ink:#16232b; --muted:#5b6b75; --line:#d3dce0;
+  --accent:#0b6e6e; --accent-ink:#ffffff; --screen:#0f1c22; --screen-ink:#7ff0d4;
+  --ok:#1b7f4b; --warn:#a15c00; --danger:#b3261e;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#10181d; --panel:#18242b; --ink:#e6eef1; --muted:#97a8b1; --line:#2b3b44;
+    --accent:#35c2b0; --accent-ink:#06201c; --screen:#081014; --screen-ink:#7ff0d4;
+    --ok:#5fd596; --warn:#f0b35a; --danger:#ff8a80;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.5 "IBM Plex Sans",system-ui,sans-serif;padding:24px 16px 64px}
+.wrap{max-width:980px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:26px;font-weight:600;margin:0;letter-spacing:-.01em}
+header p{margin:2px 0 0;color:var(--muted)}
+.rate{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px}
+.rate input{width:76px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.grid{display:grid;grid-template-columns:1fr 300px;gap:20px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+label{display:block;font-size:14px;font-weight:500;margin-bottom:4px}
+input,select{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+input:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.field{margin-bottom:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.row2{grid-template-columns:1fr}}
+button{font:inherit;font-weight:500;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.link{border:none;background:none;color:var(--danger);padding:4px 6px}
+.screen{background:var(--screen);color:var(--screen-ink);border-radius:8px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;min-height:200px;
+  background-image:repeating-linear-gradient(0deg,rgba(127,240,212,.07) 0 1px,transparent 1px 6px)}
+.screen small{color:var(--screen-ink);opacity:.75;font-size:13px}
+.screen .big{font:500 40px/1.1 "IBM Plex Mono",ui-monospace,monospace;word-break:break-all}
+.screen .calc{font:500 14px "IBM Plex Mono",ui-monospace,monospace;opacity:.85}
+.list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:28px 0 12px}
+h2{font-size:18px;margin:0;font-weight:600}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{width:100%;border-collapse:collapse;min-width:620px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-size:15px}
+th{font-weight:600;color:var(--muted);font-size:13px;background:transparent}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+tfoot td{font-weight:600;border-top:2px solid var(--line);border-bottom:none}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.tag.sent{color:var(--ok);border-color:var(--ok)}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.status{min-height:22px;margin-top:10px;font-size:14px}
+.status.ok{color:var(--ok)} .status.err{color:var(--danger)} .status.info{color:var(--muted)}
+details{margin-top:20px}
+summary{cursor:pointer;font-weight:500}
+details .inner{margin-top:12px}
+ol{padding-left:20px;margin:8px 0} li{margin-bottom:6px}
+pre{background:var(--screen);color:var(--screen-ink);padding:14px;border-radius:8px;overflow-x:auto;font:500 13px/1.5 "IBM Plex Mono",ui-monospace,monospace;margin:8px 0}
+.hint{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>3D Print Pricing</h1>
+      <p>Enter the grams. The price is worked out for you.</p>
+    </div>
+    <div class="rate">
+      <span>Price per gram</span>
+      <input id="rate" type="number" min="0" step="0.01" value="7" aria-label="Price per gram">
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="addTitle">
+      <h2 id="addTitle" style="margin-bottom:14px">New print job</h2>
+      <div class="row2">
+        <div class="field">
+          <label for="program">Program</label>
+          <input id="program" type="text" placeholder="e.g. BSAE" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="project">Project name</label>
+          <input id="project" type="text" placeholder="e.g. Drone frame" autocomplete="off">
+        </div>
+      </div>
+      <div class="field">
+        <label for="grams">Grams</label>
+        <input id="grams" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 125">
+      </div>
+      <button class="primary" id="add">Add to list</button>
+      <div class="status" id="addStatus" role="status"></div>
+    </section>
+
+    <section class="screen" aria-live="polite">
+      <small>Price</small>
+      <div>
+        <div class="calc" id="calc">0 g × 7</div>
+        <div class="big" id="live">₱0.00</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="list-head">
+    <h2>Print jobs</h2>
+    <div class="actions">
+      <button id="xlsx">Download Excel</button>
+      <button class="primary" id="sheets">Send to Google Sheets</button>
+      <button id="clear">Clear list</button>
+    </div>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>Program</th><th>Project name</th><th class="num">Grams</th><th class="num">Price</th><th>Sheets</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+      <tfoot id="foot"></tfoot>
+    </table>
+    <div class="empty" id="empty">No print jobs yet. Add one above.</div>
+  </div>
+  <div class="status" id="status" role="status"></div>
+
+  <details id="setup">
+    <summary>Set up Google Sheets (one time)</summary>
+    <div class="inner">
+      <ol>
+        <li>Open your Google Sheet. Go to <b>Extensions &gt; Apps Script</b>.</li>
+        <li>Delete what is there, paste the code below, then click <b>Save</b>.</li>
+        <li>Click <b>Deploy &gt; New deployment</b>. Choose type <b>Web app</b>. Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. Click <b>Deploy</b> and approve the permissions.</li>
+        <li>Copy the <b>Web app URL</b> and paste it here:</li>
+      </ol>
+      <div class="field">
+        <label for="url">Web app URL</label>
+        <input id="url" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <button id="copyCode">Copy Apps Script code</button>
+<pre id="code">function doPost(e) {
+  var data = JSON.parse(e.postData.contents);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('Print Jobs') || ss.insertSheet('Print Jobs');
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(['Date', 'Program', 'Project name', 'Grams', 'Price']);
+    sh.getRange(1, 1, 1, 5).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  data.rows.forEach(function (r) {
+    sh.appendRow([r.date, r.program, r.project, r.grams, r.price]);
+  });
+  return ContentService.createTextOutput('ok');
+}</pre>
+      <p class="hint">After this, one click on “Send to Google Sheets” adds every job not yet sent as new rows. If you change the code later, create a new deployment version.</p>
+    </div>
+  </details>
+</div>
+
+<script>
+(function(){
+  var KEY = 'printJobs.v1', URLKEY = 'printSheetsUrl.v1', RATEKEY = 'printRate.v1';
+  var $ = function(id){ return document.getElementById(id); };
+  var jobs = [];
+
+  function load(){
+    try { jobs = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e){ jobs = []; }
+    try { $('url').value = localStorage.getItem(URLKEY) || ''; } catch(e){}
+    try { var r = localStorage.getItem(RATEKEY); if (r) $('rate').value = r; } catch(e){}
+  }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(jobs)); } catch(e){} }
+
+  function rate(){ var r = parseFloat($('rate').value); return isFinite(r) && r >= 0 ? r : 0; }
+  function money(n){ return '₱' + n.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function round2(n){ return Math.round(n * 100) / 100; }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function setStatus(id, msg, kind){ var el = $(id); el.textContent = msg || ''; el.className = 'status ' + (kind || ''); }
+
+  function updateLive(){
+    var g = parseFloat($('grams').value);
+    if (!isFinite(g) || g < 0) g = 0;
+    var r = rate();
+    $('calc').textContent = g + ' g × ' + r;
+    $('live').textContent = money(round2(g * r));
+  }
+
+  function render(){
+    var body = $('rows');
+    body.innerHTML = '';
+    jobs.forEach(function(j, i){
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + esc(j.program) + '</td>' +
+        '<td>' + esc(j.project) + '</td>' +
+        '<td class="num">' + j.grams + '</td>' +
+        '<td class="num">' + money(j.price) + '</td>' +
+        '<td><span class="tag' + (j.sent ? ' sent' : '') + '">' + (j.sent ? 'Sent' : 'Not sent') + '</span></td>' +
+        '<td><button class="link" data-i="' + i + '" aria-label="Delete ' + esc(j.project) + '">Delete</button></td>';
+      body.appendChild(tr);
+    });
+    $('empty').style.display = jobs.length ? 'none' : 'block';
+    var foot = $('foot');
+    if (jobs.length){
+      var tg = jobs.reduce(function(a, j){ return a + j.grams; }, 0);
+      var tp = jobs.reduce(function(a, j){ return a + j.price; }, 0);
+      foot.innerHTML = '<tr><td colspan="2">Total</td><td class="num">' + round2(tg) + '</td><td class="num">' + money(round2(tp)) + '</td><td colspan="2"></td></tr>';
+    } else foot.innerHTML = '';
+  }
+
+  function today(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function add(){
+    var program = $('program').value.trim();
+    var project = $('project').value.trim();
+    var grams = parseFloat($('grams').value);
+    if (!project){ setStatus('addStatus', 'Enter a project name.', 'err'); $('project').focus(); return; }
+    if (!isFinite(grams) || grams <= 0){ setStatus('addStatus', 'Enter the grams as a number above 0.', 'err'); $('grams').focus(); return; }
+    jobs.push({ date: today(), program: program, project: project, grams: grams, rate: rate(), price: round2(grams * rate()), sent: false });
+    save(); render();
+    $('project').value = ''; $('grams').value = ''; updateLive();
+    setStatus('addStatus', 'Added.', 'ok');
+    $('project').focus();
+  }
+
+  function downloadXlsx(){
+    if (!jobs.length){ setStatus('status', 'Add at least one print job first.', 'err'); return; }
+    var header = ['Date','Program','Project name','Grams','Price'];
+    var data = [header].concat(jobs.map(function(j){ return [j.date, j.program, j.project, j.grams, j.price]; }));
+    var tg = jobs.reduce(function(a, j){ return a + j.grams; }, 0);
+    var tp = jobs.reduce(function(a, j){ return a + j.price; }, 0);
+    data.push(['', '', 'Total', round2(tg), round2(tp)]);
+    if (window.XLSX){
+      var ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{wch:12},{wch:16},{wch:28},{wch:10},{wch:12}];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Print Jobs');
+      XLSX.writeFile(wb, 'print-jobs-' + today() + '.xlsx');
+      setStatus('status', 'Excel file downloaded.', 'ok');
+    } else {
+      var csv = data.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+      a.download = 'print-jobs-' + today() + '.csv';
+      a.click();
+      setStatus('status', 'Excel library did not load, so a CSV file was downloaded instead. Excel opens CSV files.', 'info');
+    }
+  }
+
+  function sendSheets(){
+    var url = $('url').value.trim();
+    if (!/^https:\/\/script\.google\.com\//.test(url)){
+      $('setup').open = true;
+      setStatus('status', 'Paste your Web app URL in the setup section first.', 'err');
+      $('url').focus();
+      return;
+    }
+    var pending = jobs.filter(function(j){ return !j.sent; });
+    if (!pending.length){ setStatus('status', 'Every job is already in the sheet.', 'info'); return; }
+    var btn = $('sheets'); btn.disabled = true;
+    setStatus('status', 'Sending ' + pending.length + ' job' + (pending.length > 1 ? 's' : '') + '…', 'info');
+    var payload = { rows: pending.map(function(j){ return { date:j.date, program:j.program, project:j.project, grams:j.grams, price:j.price }; }) };
+    fetch(url, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
+      .then(function(){
+        pending.forEach(function(j){ j.sent = true; });
+        save(); render();
+        setStatus('status', 'Sent ' + pending.length + ' job' + (pending.length > 1 ? 's' : '') + '. Check your sheet to confirm they arrived.', 'ok');
+      })
+      .catch(function(){
+        setStatus('status', 'Could not reach Google. Check your internet connection and the Web app URL.', 'err');
+      })
+      .then(function(){ btn.disabled = false; });
+  }
+
+  $('grams').addEventListener('input', updateLive);
+  $('rate').addEventListener('input', function(){
+    try { localStorage.setItem(RATEKEY, $('rate').value); } catch(e){}
+    updateLive();
+  });
+  $('url').addEventListener('change', function(){ try { localStorage.setItem(URLKEY, $('url').value.trim()); } catch(e){} });
+  ['program','project','grams'].forEach(function(id){
+    $(id).addEventListener('keydown', function(e){ if (e.key === 'Enter') add(); });
+  });
+  $('add').addEventListener('click', add);
+  $('xlsx').addEventListener('click', downloadXlsx);
+  $('sheets').addEventListener('click', sendSheets);
+  $('clear').addEventListener('click', function(){
+    if (jobs.length && confirm('Remove all print jobs from this list? Rows already in your sheet stay there.')){ jobs = []; save(); render(); setStatus('status','List cleared.','info'); }
+  });
+  $('rows').addEventListener('click', function(e){
+    var i = e.target.getAttribute && e.target.getAttribute('data-i');
+    if (i !== null && i !== undefined){ jobs.splice(parseInt(i,10), 1); save(); render(); }
+  });
+  $('copyCode').addEventListener('click', function(){
+    var text = $('code').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function(){
+      setStatus('status', 'Code copied.', 'ok');
+    }).catch(function(){
+      var r = document.createRange(); r.selectNodeContents($('code'));
+      var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      setStatus('status', 'Code selected. Press Ctrl+C to copy.', 'info');
+    });
+  });
+
+  load(); render(); updateLive();
+})();
+</script>
+</body>
+</html>
